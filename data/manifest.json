@@ -1,0 +1,12 @@
+{
+  "source": "scikit-learn load_digits",
+  "scikit_learn_version": "1.9.1",
+  "split_rule": "Stratified 80/20 train+val/test split; then stratified 75/25 train/val split; random_state=0",
+  "split_seed": 0,
+  "sizes": {
+    "train": 1077,
+    "val": 360,
+    "test": 360
+  },
+  "split_sha256": "6292b3d0d41cf7b302d5f7afbfbc93b712e8f74fc19b4ab62b67186417946cae"
+}
