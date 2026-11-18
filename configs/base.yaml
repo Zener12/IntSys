@@ -5,7 +5,7 @@ model:
   hidden: 64
   dropout: 0.0
 train:
-  lr: 0.001
+  lr: -1
   weight_decay: 0.0
   batch_size: 64
   epochs: 30
