@@ -1,5 +1,5 @@
 .venv/
 runs/
-mlartifacts/
+mlruns/
 mlflow.db
 optuna.db
