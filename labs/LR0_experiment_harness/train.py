@@ -268,132 +268,9 @@ if __name__ == "__main__":
     # ==== END metadata.json (1) ====
 
     try:
-        # ==== START config.yaml ====
-
-        config["seed"] = seed
-        config_path_in_run = run_dir / "config.yaml"
-        config_path_in_run.write_text(
-            yaml.safe_dump(config, sort_keys=False, allow_unicode=True),
-            encoding="utf-8"
-        )
-        print("Записана config.yaml")
-
-        # ==== END config.yaml ====
-
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.use_deterministic_algorithms(True)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
-
-        device = config["runtime"]["device"]
-        torch.set_num_threads(config["runtime"]["num_threads"])
-
-        generator = torch.Generator()
-        generator.manual_seed(seed)
-        train_loader, val_loader, test_loader = make_loaders(
-            config["train"]["batch_size"], generator
-        )
-        model = FirstNN(
-            hidden=config["model"]["hidden"],
-            n_layers=config["model"]["n_layers"],
-            dropout=config["model"]["dropout"]
-        ).to(device)
-        criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(model.parameters(), 
-                                    lr=config["train"]["lr"], 
-                                    weight_decay=config["train"]["weight_decay"]
-        )
-
-
-        # ==== START history.csv & predictions.csv ====
-
-        history_path = run_dir / "history.csv"
-        with history_path.open("w", newline="", encoding="utf-8") as file:
-            writer = csv.DictWriter(
-                file,
-                fieldnames=["epoch", "train_loss", "val_loss", "val_acc", "epoch_time"]
-            )
-            writer.writeheader()
-            def save_epoch(row):
-                writer.writerow(row)
-                file.flush()
-            history = train_nn(
-                        device, model, optimizer, criterion, train_loader, val_loader, 
-                        max_epochs=config["train"]["epochs"], on_epoch_end=save_epoch
-            )
-
-        print("Записан history.csv")
-
-        val_rows = val_predict(model, val_loader, device)
-
-        test_acc = None
-        test_rows = []
-        if args.eval_test:
-            test_acc, test_rows = test_accuracy(model, test_loader, device)
-
-        predictions_path = run_dir / "predictions.csv"
-        with predictions_path.open("w", newline="", encoding="utf-8") as file:
-            writer = csv.DictWriter(
-                file,
-                fieldnames = ["split", "index", "y_true", "y_pred"]
-            )
-            writer.writeheader()
-            writer.writerows(val_rows)
-            if args.eval_test:
-                writer.writerows(test_rows)
-
-        print("Записан predictions.csv")
-
-        # ==== END history.csv & predictions.csv ====
-
-        # ==== START metrics.json ====
-
-        with history_path.open("r", newline="", encoding="utf-8") as file:
-            history_rows = list(csv.DictReader(file))
-
-        with predictions_path.open("r", newline="", encoding="utf-8") as file:
-            predictions_rows = list(csv.DictReader(file))
-
-        val_rows = [row for row in predictions_rows if row["split"] == "val"]
-
-        metrics = {
-            "val_acc": sum(
-                int(row["y_true"]) == int(row["y_pred"]) for row in val_rows
-            ) / len(val_rows),
-            "val_loss": float(history_rows[-1]["val_loss"]),
-            "train_time_seconds": sum(
-                float(row["epoch_time"]) for row in history_rows
-            ),
-        }
-
-        if args.eval_test:
-            test_rows = [row for row in predictions_rows if row["split"] == "test"]
-            metrics["test_acc"] = sum(
-                int(row["y_true"]) == int(row["y_pred"]) for row in test_rows
-            ) / len(test_rows)
-
-        metrics_path = run_dir / "metrics.json"
-        metrics_path.write_text(
-            json.dumps(metrics, indent=2) + "\n",
-            encoding="utf-8"
-        )
-
-        print("Записан metrics.json")
-
-        # ==== END metrics.json ====
-
-        # ==== START metadata.json(2) ====
-
-        metadata["status"] = "completed"
-        metadata["end_time"] = datetime.now(timezone.utc).isoformat()
-        metadata_path.write_text(
-            json.dumps(metadata, indent=2) + "\n",
-            encoding="utf-8"
-        )
-        print("Записана metadata.json")
-
+        mlflow.set_tracking_uri("sqlite:///mlflow.db")
+        mlflow.set_experiment("lr0")
+        mlflow_run = mlflow.start_run(run_name=run_id)
     except Exception as exc:
         metadata["status"] = "failed"
         metadata["error"] = str(exc)
@@ -403,7 +280,187 @@ if __name__ == "__main__":
             json.dumps(metadata, indent=2) + "\n",
             encoding="utf-8"
         )
-        print("Записана metadata.json")
         raise
 
-        # ==== END metadata.json (2) ====
+    with mlflow_run:
+        try:
+            # ==== START config.yaml ====
+
+            config["seed"] = seed
+            config_path_in_run = run_dir / "config.yaml"
+            config_path_in_run.write_text(
+                yaml.safe_dump(config, sort_keys=False, allow_unicode=True),
+                encoding="utf-8"
+            )
+            print("Записана config.yaml")
+
+            # ==== END config.yaml ====
+
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            torch.use_deterministic_algorithms(True)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+
+            device = config["runtime"]["device"]
+            torch.set_num_threads(config["runtime"]["num_threads"])
+
+            generator = torch.Generator()
+            generator.manual_seed(seed)
+            train_loader, val_loader, test_loader = make_loaders(
+                config["train"]["batch_size"], generator
+            )
+            model = FirstNN(
+                hidden=config["model"]["hidden"],
+                n_layers=config["model"]["n_layers"],
+                dropout=config["model"]["dropout"]
+            ).to(device)
+            criterion = nn.CrossEntropyLoss()
+            optimizer = torch.optim.Adam(model.parameters(), 
+                                        lr=config["train"]["lr"], 
+                                        weight_decay=config["train"]["weight_decay"]
+            )
+
+            mlflow.log_params({
+                "seed": seed,
+                "split_seed": config["split_seed"],
+                "model.n_layers": config["model"]["n_layers"],
+                "model.hidden": config["model"]["hidden"],
+                "model.dropout": config["model"]["dropout"],
+                "train.lr": config["train"]["lr"],
+                "train.weight_decay": config["train"]["weight_decay"],
+                "train.batch_size": config["train"]["batch_size"],
+                "train.epochs": config["train"]["epochs"],
+                "runtime.device": config["runtime"]["device"],
+                "runtime.num_threads": config["runtime"]["num_threads"],
+                "eval_test": args.eval_test
+            })
+
+            mlflow.set_tags({
+                "commit": commit,
+                "series": args.series,
+                "seed": str(seed),
+                "harness_run_id": run_id
+            })
+
+            # ==== START history.csv & predictions.csv ====
+
+            history_path = run_dir / "history.csv"
+            with history_path.open("w", newline="", encoding="utf-8") as file:
+                def save_epoch(row):
+                    writer.writerow(row)
+                    file.flush()
+                    for name in ("train_loss", "val_loss", "val_acc", "epoch_time"):
+                        mlflow.log_metric(
+                            name,
+                            float(row[name]),
+                            step=int(row["epoch"])
+                        )
+
+                writer = csv.DictWriter(
+                    file,
+                    fieldnames=["epoch", "train_loss", "val_loss", "val_acc", "epoch_time"]
+                )
+                writer.writeheader()
+                history = train_nn(
+                            device, model, optimizer, criterion, train_loader, val_loader, 
+                            max_epochs=config["train"]["epochs"], on_epoch_end=save_epoch
+                )
+
+            print("Записан history.csv")
+
+            val_rows = val_predict(model, val_loader, device)
+
+            test_acc = None
+            test_rows = []
+            if args.eval_test:
+                test_acc, test_rows = test_accuracy(model, test_loader, device)
+
+            predictions_path = run_dir / "predictions.csv"
+            with predictions_path.open("w", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(
+                    file,
+                    fieldnames = ["split", "index", "y_true", "y_pred"]
+                )
+                writer.writeheader()
+                writer.writerows(val_rows)
+                if args.eval_test:
+                    writer.writerows(test_rows)
+
+            print("Записан predictions.csv")
+
+            # ==== END history.csv & predictions.csv ====
+
+            # ==== START metrics.json ====
+
+            with history_path.open("r", newline="", encoding="utf-8") as file:
+                history_rows = list(csv.DictReader(file))
+
+            with predictions_path.open("r", newline="", encoding="utf-8") as file:
+                predictions_rows = list(csv.DictReader(file))
+
+            val_rows = [row for row in predictions_rows if row["split"] == "val"]
+
+            metrics = {
+                "val_acc": sum(
+                    int(row["y_true"]) == int(row["y_pred"]) for row in val_rows
+                ) / len(val_rows),
+                "val_loss": float(history_rows[-1]["val_loss"]),
+                "train_time_seconds": sum(
+                    float(row["epoch_time"]) for row in history_rows
+                ),
+            }
+
+            if args.eval_test:
+                test_rows = [row for row in predictions_rows if row["split"] == "test"]
+                metrics["test_acc"] = sum(
+                    int(row["y_true"]) == int(row["y_pred"]) for row in test_rows
+                ) / len(test_rows)
+
+            metrics_path = run_dir / "metrics.json"
+            metrics_path.write_text(
+                json.dumps(metrics, indent=2) + "\n",
+                encoding="utf-8"
+            )
+
+            mlflow.log_metrics(metrics)
+            print("Записан metrics.json")
+
+            # ==== END metrics.json ====
+
+            # ==== START metadata.json(2) ====
+
+            metadata["status"] = "completed"
+            metadata["end_time"] = datetime.now(timezone.utc).isoformat()
+            metadata_path.write_text(
+                json.dumps(metadata, indent=2) + "\n",
+                encoding="utf-8"
+            )
+            print("Записана metadata.json")
+            
+            mlflow.log_artifacts(str(run_dir))
+ 
+        except Exception as exc:
+            metadata["status"] = "failed"
+            metadata["error"] = str(exc)
+            metadata["traceback"] = traceback.format_exc()
+            metadata["end_time"] = datetime.now(timezone.utc).isoformat()
+            metadata_path.write_text(
+                json.dumps(metadata, indent=2) + "\n",
+                encoding="utf-8"
+            )
+            print("Записана metadata.json")
+            
+            try:
+                mlflow.log_artifacts(str(run_dir))
+            except Exception as artifact_exc:
+                metadata["artifact_logging_error"] = str(artifact_exc)
+                metadata_path.write_text(
+                    json.dumps(metadata, indent=2) + "\n",
+                    encoding="utf-8"
+                )
+            
+            raise
+
+            # ==== END metadata.json (2) ====
