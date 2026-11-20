@@ -1,0 +1,16 @@
+{
+  "run_id": "c4e8622f2d8c",
+  "series": "reproducibility_check",
+  "num_threads": 1,
+  "status": "completed",
+  "start_time": "2026-11-20T14:05:50.110800+00:00",
+  "end_time": "2026-11-20T14:06:07.684344+00:00",
+  "commit": "2921f940888c88cf9e504300db727b162112306b",
+  "Python version": "3.14.2",
+  "PyTorch version": "2.15.0+cpu",
+  "Scikit-learn version": "1.9.1",
+  "Optuna version": "5.1.0",
+  "MLFlow version": "3.18.0",
+  "seed": 0,
+  "SHA-256": "6292b3d0d41cf7b302d5f7afbfbc93b712e8f74fc19b4ab62b67186417946cae"
+}
